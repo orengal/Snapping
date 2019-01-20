@@ -2,10 +2,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Snapping Example - 4.9</title>
-  <link rel="stylesheet" href="https://js.arcgis.com/4.9/esri/css/main.css">
+<title>Snapping Example - 4.10</title>
+  <link rel="stylesheet" href="https://js.arcgis.com/4.10/esri/css/main.css">
   <script src="https://code.jquery.com/jquery-2.2.4.min.js"></script>
-  <script src="https://js.arcgis.com/4.9/"></script>
+  <script src="https://js.arcgis.com/4.10/"></script>
   <style>
     html,
     body,
@@ -27,25 +27,31 @@
       "esri/views/2d/draw/Draw",
       "esri/symbols/SimpleFillSymbol",
       "esri/geometry/Polygon",
+      "esri/geometry/Polyline",
       "esri/Graphic",
       "esri/symbols/SimpleMarkerSymbol",
       "esri/geometry/Point",
-      "esri/geometry/SpatialReference"
+      "esri/geometry/SpatialReference",
+      "esri/geometry/Extent"
     ], function(
       Map,MapView,GraphicsLayer,VectorTileLayer,Query,QueryTask,Draw,SimpleFillSymbol,Polygon,
-       Graphic,SimpleMarkerSymbol,Point,SpatialReference
+       Polyline,Graphic,SimpleMarkerSymbol,Point,SpatialReference,Extent
     ) {
-         const map = new Map({
-         basemap: "streets-vector"
-      });
+       const map = new Map();
 
-      const view = new MapView({
-        container: "viewDiv",
-        map: map,
-        zoom: 19,
-        center: [34.78439, 32.08305]
+       const view = new MapView({
+            container: "viewDiv",
+            map: map,
+            extent:new Extent({ 
+                xmin: 3872114,
+                ymin: 3774220,
+                xmax: 3872214,
+                ymax: 3774320,
+                spatialReference: new SpatialReference(102100)
+            }),
+            spatialReference: new SpatialReference(102100)
       });
-      
+            
       var urlBuildings= "https://gisn.tel-aviv.gov.il/arcgis/rest/services/WM/IView2WM/MapServer/513";
       var graphicsLayerPolygon = new GraphicsLayer();
       var graphicsLayerSnap = new GraphicsLayer();
@@ -61,17 +67,17 @@
           }
        }
        var snapSymbol = {
-           type: "simple-marker",  // autocasts as new SimpleMarkerSymbol()
+           type: "simple-marker",  
            style: "square",
            color: "transparent",
-           size: "8px",  // pixels
-           outline: {  // autocasts as new SimpleLineSymbol()
+           size: "8px", 
+           outline: {  
                color: [ 255, 0, 0 ],
-               width: 1  // points
+               width: 1 
            }
        }
 
-       function fillMap()
+       function addLayers()
        {
            var urlVector = "https://tiles.arcgis.com/tiles/PcGFyTym9yKZBRgz/arcgis/rest/services/TelAvivMapEngWm/VectorTileServer";
            var vectorLayer = new VectorTileLayer({
@@ -127,13 +133,17 @@
                 vertices[vertices.length - 1] = snapVertice;
                 snapVertice = null;
             }
-            var polygon = new Polygon({
+            
+            var poly = vertices.length > 2 ?  new Polygon({
                 rings: vertices,
                 spatialReference: 102100
-            });
-            
+            }) : new Polyline({
+                paths: vertices,
+                spatialReference: 102100
+            });      
+           
             var graphic = new Graphic({
-                geometry: polygon,
+                geometry: poly,
                 symbol: polygonSymbol
             });
 
@@ -143,7 +153,10 @@
       
       function viewMouseMove(evt)
       {
-          if (snappingPoints.length === 0)
+        if (snappingPoints == undefined)
+            return;  
+        
+        if (snappingPoints.length === 0)
             return;
         
           graphicsLayerSnap.removeAll();
@@ -179,7 +192,7 @@
           }
       }
 
-      view.when(fillMap);
+      view.when(addLayers);
     });
   </script>
 </head>
