@@ -1,0 +1,203 @@
+﻿<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1,user-scalable=no">
+    <title>Snapping Example - 3.27</title>
+    <link rel="stylesheet" href="https://js.arcgis.com/3.27/dijit/themes/claro/claro.css">
+    <link rel="stylesheet" href="https://js.arcgis.com/3.27/esri/css/esri.css">
+    <script src="https://code.jquery.com/jquery-2.2.4.min.js"></script>
+    <script src="https://js.arcgis.com/3.27/"></script>
+    <style>
+        html, body, #map {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+    <script>
+        require([
+            "esri/map",
+            "dojo/parser",
+            "esri/config",
+            "esri/layers/VectorTileLayer",
+            "esri/geometry/Extent",
+            "esri/SpatialReference",
+            "esri/layers/GraphicsLayer",
+
+            "esri/tasks/query",
+            "esri/tasks/QueryTask",
+            "esri/graphic",
+            "esri/geometry/Point",
+            "esri/geometry/Polygon",
+            "esri/symbols/SimpleMarkerSymbol",
+            "esri/symbols/SimpleFillSymbol",
+            "esri/symbols/SimpleLineSymbol",
+            "esri/Color",
+
+            "dojo/domReady!"
+        ], function (
+            Map, parser, esriConfig, VectorTileLayer, Extent, SpatialReference, GraphicsLayer,
+            Query, QueryTask, Graphic, Point, Polygon, SimpleMarkerSymbol, SimpleFillSymbol, SimpleLineSymbol, Color
+        ) {
+                parser.parse();
+                esriConfig.defaults.io.proxyUrl = "/proxy/";
+
+                var map = new Map("map");
+                map.disableDoubleClickZoom();      
+                var spat = new SpatialReference(102100);
+
+                var vectorTileLayer = new VectorTileLayer("https://tiles.arcgis.com/tiles/PcGFyTym9yKZBRgz/arcgis/rest/services/TelAvivMapEngWm/VectorTileServer");
+                map.addLayer(vectorTileLayer);
+
+                var extent = new Extent(3872114, 3774220, 3872214, 3774320, spat);
+                map.extent = extent;
+
+                var graphicsLayerPolygon = new GraphicsLayer({ id: "graphicsLayerPolygon", spatialReference: spat });
+                map.addLayer(graphicsLayerPolygon);
+
+                var graphicsLayerSnap = new GraphicsLayer({ id: "graphicsLayerSnap", spatialReference: spat });
+                map.addLayer(graphicsLayerSnap);
+
+                $("#btnStart").mousedown(pressStart);
+                map.on("mouse-move", mapMouseMove);
+                map.on("mouse-down", mapMouseDown);
+                var polygonPoints = [];
+                var snappingPoints = [];
+                var snapVertice = null;
+                var tool = "pan";
+            
+                var polygonSymbol = new SimpleFillSymbol(SimpleFillSymbol.STYLE_SOLID, new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID, new Color([255, 0, 0]), 2), new Color([255, 0, 0, 0.2]));
+
+                var snapSymbol = new SimpleMarkerSymbol({
+                    "color": [255, 0, 0, 0],
+                    "size": 8,
+                    "type": "esriSMS",
+                    "style": "esriSMSSquare",
+                    "outline": {
+                        "color": [255, 0, 0, 255],
+                        "width": 1,
+                        "type": "esriSLS",
+                        "style": "esriSLSSolid"
+                    }
+                });
+
+                function pressStart() {
+                    graphicsLayerPolygon.clear();
+                    graphicsLayerSnap.clear();
+
+                    var query = new Query();
+                    query.returnGeometry = true;
+                    query.geometry = map.extent;
+                    var queryTask = new QueryTask("https://gisn.tel-aviv.gov.il/arcgis/rest/services/WM/IView2WM/MapServer/513");
+                    queryTask.on("complete", function (results) {
+                        $.each(results.featureSet.features, function (index, feature) {
+                            $.each(feature.geometry.rings, function (index2, pointArray) {
+                                $.each(pointArray, function (index3, pnt) {
+                                    snappingPoints.push(pnt);
+                                });
+                            });
+                        });
+                        $("#btnStart").html("START (" + snappingPoints.length + ")");
+                        $("#btnStart").css("border", "2px solid red");
+                    });
+                    queryTask.execute(query);
+                    tool = "draw";
+                }
+
+                function mapMouseDown(evt) {
+                    if (tool !== "draw")
+                        return;
+
+                    if (snapVertice) {
+                        polygonPoints.push(new Point(snapVertice[0],snapVertice[1],spat));
+                    } else {
+                        polygonPoints.push(evt.mapPoint);
+                    }
+                    
+                    var poly = new Polygon(spat);
+                    poly.addRing(polygonPoints);
+
+                    var graphic = new Graphic();
+                    graphic.geometry = poly;
+                    graphic.symbol = polygonSymbol;
+                    graphicsLayerPolygon.clear();
+                    graphicsLayerPolygon.add(graphic);
+
+                    if (polygonPoints.length >= 3) {
+                        var pntLast = polygonPoints[polygonPoints.length - 1];
+                        var pntLastm1 = polygonPoints[polygonPoints.length - 2];
+                        var dx = pntLast.x - pntLastm1.x;
+                        var dy = pntLast.y - pntLastm1.y;
+                        var d = Math.sqrt(dx * dx + dy * dy);
+                        if (d < map.getScale() / 800) {
+                            tool = "pan";
+                            $("#btnStart").html("START");
+                            $("#btnStart").css("border", "1px solid gray");
+                            polygonPoints = [];
+                            snappingPoints = [];
+                            graphicsLayerSnap.clear();
+                        }
+                    }
+                }
+
+                function mapMouseMove(evt) {
+                    if (polygonPoints.length > 0) {
+                        var pnts = polygonPoints.slice();
+                        pnts.push(evt.mapPoint);
+                        var poly = new Polygon(spat);
+                        poly.addRing(pnts);
+
+                        var graphic = new Graphic();
+                        graphic.geometry = poly;
+                        graphic.symbol = polygonSymbol;
+                        graphicsLayerPolygon.clear();
+                        graphicsLayerPolygon.add(graphic);
+                    }
+                    
+                    if (snappingPoints == undefined)
+                        return;
+
+                    if (snappingPoints.length === 0)
+                        return;
+
+                    graphicsLayerSnap.clear();
+                    snapVertice = null;
+
+                    var x = evt.mapPoint.x;
+                    var y = evt.mapPoint.y;
+
+                    var minDist = 999999;
+                    var tempX = 0;
+                    var tempY = 0;
+
+                    $.each(snappingPoints, function (index, pnt) {
+                        var dxSnap = x - pnt[0];
+                        var dySnap = y - pnt[1];
+                        var d = Math.sqrt(dxSnap * dxSnap + dySnap * dySnap);
+                        if (d < minDist) {
+                            minDist = d;
+                            tempX = pnt[0];
+                            tempY = pnt[1];
+                        }
+                    });
+
+                    var minDistInScale = map.getScale() / 400;
+                    if (minDist < minDistInScale) {
+                        var pnt = new Point(tempX, tempY, spat);
+                        var g = new Graphic();
+                        g.geometry = pnt;
+                        g.symbol = snapSymbol;
+                        graphicsLayerSnap.add(g);
+                        snapVertice = [tempX, tempY];
+                    }
+                }
+            });
+    </script>
+</head>
+
+<body>
+    <div id="map"></div>
+    <button id="btnStart" style="width:110px;height:30px;z-index:100;position:absolute;top:15px;left:60px">START</button>
+</body>
+</html>
