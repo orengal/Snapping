@@ -37,31 +37,32 @@
             Map, VectorTileLayer, Extent, SpatialReference, GraphicsLayer,
             Query, QueryTask, Graphic, Point, Polygon, SimpleMarkerSymbol, SimpleFillSymbol, SimpleLineSymbol, Color
         ) {
-            var spat = new SpatialReference(102100);
+                var spat = new SpatialReference(102100);
 
                 var map = new Map("map");
                 var extent = new Extent(3872114, 3774220, 3872214, 3774320, spat);
                 map.extent = extent;
-                map.disableDoubleClickZoom();      
-                
+                map.disableDoubleClickZoom();
+
                 map.addLayer(new VectorTileLayer("https://tiles.arcgis.com/tiles/PcGFyTym9yKZBRgz/arcgis/rest/services/TelAvivMapEngWm/VectorTileServer"));
-            
+
                 var graphicsLayerPolygon = new GraphicsLayer({ id: "graphicsLayerPolygon", spatialReference: spat });
                 map.addLayer(graphicsLayerPolygon);
 
                 var graphicsLayerSnap = new GraphicsLayer({ id: "graphicsLayerSnap", spatialReference: spat });
                 map.addLayer(graphicsLayerSnap);
 
+                var polygonPoints = [];
+                var snappingPoints = [];
                 $("#btnStart").mousedown(pressStart);
                 map.on("mouse-move", mapMouseMove);
                 map.on("mouse-down", mapMouseDown);
-                var polygonPoints = [];
-                var snappingPoints = [];
+                
                 var snapVertice = null;
                 var tool = "pan";
-            
+
                 var polygonSymbol = new SimpleFillSymbol(SimpleFillSymbol.STYLE_SOLID, new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID, new Color([255, 0, 0]), 2), new Color([255, 0, 0, 0.2]));
-                var snapSymbol = new SimpleMarkerSymbol({"color": [255, 0, 0, 0],"size": 8,"type": "esriSMS","style": "esriSMSSquare","outline": {"color": [255, 0, 0, 255],"width": 1,"type": "esriSLS","style": "esriSLSSolid"}});
+                var snapSymbol = new SimpleMarkerSymbol({ "color": [255, 0, 0, 0], "size": 8, "type": "esriSMS", "style": "esriSMSSquare", "outline": { "color": [255, 0, 0, 255], "width": 1, "type": "esriSLS", "style": "esriSLSSolid" } });
 
                 function pressStart() {
                     var query = new Query();
@@ -86,21 +87,11 @@
                     if (tool !== "draw")
                         return;
 
-                    if (snapVertice) {
-                        polygonPoints.push(new Point(snapVertice[0],snapVertice[1],spat));
-                    } else {
+                    if (snapVertice)
+                        polygonPoints.push(new Point(snapVertice[0], snapVertice[1], spat));
+                    else
                         polygonPoints.push(evt.mapPoint);
-                    }
                     
-                    var poly = new Polygon(spat);
-                    poly.addRing(polygonPoints);
-
-                    var graphic = new Graphic();
-                    graphic.geometry = poly;
-                    graphic.symbol = polygonSymbol;
-                    graphicsLayerPolygon.clear();
-                    graphicsLayerPolygon.add(graphic);
-
                     if (polygonPoints.length >= 3) {
                         var pntLast = polygonPoints[polygonPoints.length - 1];
                         var pntLastm1 = polygonPoints[polygonPoints.length - 2];
@@ -121,12 +112,11 @@
                     if (polygonPoints.length > 0) {
                         var pnts = polygonPoints.slice();
 
-                        if (snapVertice) {
-                            pnts.push(new Point(snapVertice[0],snapVertice[1],spat));
-                        } else {
+                        if (snapVertice)
+                            pnts.push(new Point(snapVertice[0], snapVertice[1], spat));
+                        else
                             pnts.push(evt.mapPoint);
-                        }
-                        
+
                         var poly = new Polygon(spat);
                         poly.addRing(pnts);
 
@@ -136,9 +126,6 @@
                         graphicsLayerPolygon.clear();
                         graphicsLayerPolygon.add(graphic);
                     }
-                    
-                    if (snappingPoints == undefined)
-                        return;
 
                     if (snappingPoints.length === 0)
                         return;
@@ -146,16 +133,13 @@
                     graphicsLayerSnap.clear();
                     snapVertice = null;
 
-                    var x = evt.mapPoint.x;
-                    var y = evt.mapPoint.y;
-
                     var minDist = 999999;
                     var tempX = 0;
                     var tempY = 0;
 
                     $.each(snappingPoints, function (index, pnt) {
-                        var dxSnap = x - pnt[0];
-                        var dySnap = y - pnt[1];
+                        var dxSnap = evt.mapPoint.x - pnt[0];
+                        var dySnap = evt.mapPoint.y - pnt[1];
                         var d = Math.sqrt(dxSnap * dxSnap + dySnap * dySnap);
                         if (d < minDist) {
                             minDist = d;
